@@ -1,0 +1,78 @@
+- name: Chess Flask Deployment
+  hosts: all
+  become: yes
+
+  tasks:
+  - name: update the system
+    apt:
+      update_cache: true
+
+  - name: Install python3, python3-pip, nginx, gunicorn
+    apt:
+      name:
+        - nginx
+        - gunicorn
+        - python3
+        - python3-pip
+      state: present
+
+  - name: install virtualenv
+    pip:
+      name: virtualenv
+
+  - name: Clone Repository
+    git:
+      repo: "https://github.com/preciousakpan/FlaskChess.git"
+      dest: /home/ubuntu/FlaskChess
+
+  - name: setup virtual environment
+    shell: |
+      virtualenv /home/ubuntu/FlaskChess/env 
+      . /home/ubuntu/FlaskChess/env/bin/activate && pip install -r /home/ubuntu/FlaskChess/requirements.txt
+
+  - name: Create Gunicorn service file 
+    copy:
+      src: "/Users/everestode/Desktop/Ansible playbooks/gunicorn.service"
+      dest: "/etc/systemd/system/gunicorn.service"
+    notify:
+      - Restart Gunicorn
+
+  - name: Restart Gunicorn service
+    systemd:
+      name: gunicorn.service
+      state: restarted
+    notify:
+      - Restart Nginx
+
+  - name: Create Nginx host config file
+    copy:
+      src: "/Users/everestode/Desktop/Ansible playbooks/default.conf"
+      dest: "/etc/nginx/sites-available/default.conf"
+    notify:
+      - Restart Nginx
+
+  - name: Create symlink for Nginx config file
+    file:
+      src: "/etc/nginx/sites-available/default.conf"
+      dest: "/etc/nginx/sites-enabled/default.conf"
+      state: link
+    notify:
+      - Restart Nginx
+
+  - name: Remove default Nginx host configuration
+    file:
+      path: "/etc/nginx/sites-enabled/default"
+      state: absent
+    notify:
+      - Restart Nginx
+
+  handlers:
+    - name: Restart Gunicorn
+      systemd:
+        name: gunicorn.service
+        state: restarted
+
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted
